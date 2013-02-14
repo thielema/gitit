@@ -70,7 +70,7 @@ import Network.Gitit.State
 import Text.XHtml hiding ( (</>), dir, method, password, rev )
 import qualified Text.XHtml as X ( method )
 import Data.List (intersperse, nub, sortBy, find, isPrefixOf, inits)
-import Data.Maybe (fromMaybe, mapMaybe, isJust, catMaybes)
+import Data.Maybe (fromMaybe, mapMaybe, isJust, catMaybes, listToMaybe)
 import Data.Ord (comparing)
 import Data.Char (toLower, isSpace)
 import Data.List.HT (dropWhileRev, removeEach)
@@ -696,18 +696,26 @@ fileListToHtml base' prefix files =
 -- more sophisticated searching options to filestore.
 categoryPage :: Handler
 categoryPage = do
-  reqCategories <-
-     fmap
-        (map (dropWhileRev (`elem` pathSeparators)) .
-         splitPath . normalise)
-        getPath
+  let splitPathNormalise =
+         map (dropWhileRev (`elem` pathSeparators)) .
+         splitPath . normalise
+  reqComponents <- fmap splitPathNormalise getPath
+  let (reqCategories, reqDirs) =
+         case break ((Just ':' ==) . listToMaybe) reqComponents of
+            (ctgs, (':':dir'):dirs') -> (ctgs, dir':dirs')
+            x -> x  -- dirs should be empty in this case
   cfg <- getConfig
   let repoPath = repositoryPath cfg
   let categoryDescription = "Categories: " ++ unwords reqCategories
   let reqCategorySet = Set.fromList reqCategories
   fs <- getFileStore
   files <- liftIO $ index fs
-  let pages = filter (\f -> isPageFile f && not (isDiscussPageFile f)) files
+  let pages =
+         filter
+            (\f ->
+               isPageFile f &&
+               not (isDiscussPageFile f) &&
+               reqDirs `isPrefixOf` splitPathNormalise f) files
   matches <- liftM catMaybes $
              forM pages $ \f -> do
                categories <- liftIO $ readCategories $ repoPath </> f
