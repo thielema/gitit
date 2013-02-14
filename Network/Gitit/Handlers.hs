@@ -758,7 +758,7 @@ categoryPage = do
          +++
          (ulist << (map toRemoveListItem $ sortBy (comparing fst) $ removeEach reqCategories))
 
-  categories <- getCategories repoPath pages
+  categories <- getCategories repoPath matches
   let toAddListItem ctg = li << [ ctgAnchor (reqCategories ++ [ctg]) reqDirs << ctg ]
   let htmlAdditions =
          (h2 << "Add categories")
