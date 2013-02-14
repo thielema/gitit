@@ -696,7 +696,9 @@ fileListToHtml base' prefix files =
 -- more sophisticated searching options to filestore.
 categoryPage :: Handler
 categoryPage = do
+  -- Empty path is represented by ".", but the dot is no category
   let splitPathNormalise =
+         (\drs -> case drs of ["."] -> []; _ -> drs) .
          map dropTrailingPathSeparator . splitPath . normalise
   reqComponents <- fmap splitPathNormalise getPath
   let (reqCategories, reqDirs) =
