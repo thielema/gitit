@@ -698,7 +698,7 @@ categoryPage :: Handler
 categoryPage = do
   -- Empty path is represented by ".", but the dot is no category
   let splitPathNormalise =
-         (\drs -> case drs of ["."] -> []; _ -> drs) .
+         (\drs -> case drs of ["."] -> []; "/":drs0 -> drs0; _ -> drs) .
          map dropTrailingPathSeparator . splitPath . normalise
   reqComponents <- fmap splitPathNormalise getPath
   let (reqCategories, reqDirs) =
