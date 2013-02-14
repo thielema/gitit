@@ -727,17 +727,27 @@ categoryPage = do
         [ anchor ! [href $ base' ++ urlForPage (dropExtension file)] << dropExtension file ]
   let htmlMatches = ulist << map toMatchListItem matches
 
-  let toRemoveListItem (ctg, components) = li <<
-        [ anchor ! [href $ base' ++ "/_category" ++ urlForPage (joinPath components) ] << ctg ]
+  let ctgAnchor ctgs drs =
+         anchor !
+            [href $ base' ++ "/_category" ++
+                 urlForPage (joinPath ctgs ++ if null drs then "" else "/:" ++ joinPath drs) ]
+
+  let toSuperDir dr drs = ctgAnchor reqCategories drs << dr
+  let htmlSuperDirs =
+         (toHtml "Path: ")
+         +++
+         (intersperse
+            (toHtml " / ")
+            (zipWith toSuperDir ("." : reqDirs) $ inits reqDirs))
+
+  let toRemoveListItem (ctg, components) = li << [ ctgAnchor components reqDirs << ctg ]
   let htmlRemovals =
          (h2 << "Remove categories")
          +++
          (ulist << (map toRemoveListItem $ sortBy (comparing fst) $ removeEach reqCategories))
 
   categories <- getCategories repoPath pages
-  let toAddListItem ctg = li <<
-        [ anchor ! [href $ base' ++ "/_category" ++
-                       urlForPage (joinPath $ reqCategories ++ [ctg]) ] << ctg ]
+  let toAddListItem ctg = li << [ ctgAnchor (reqCategories ++ [ctg]) reqDirs << ctg ]
   let htmlAdditions =
          (h2 << "Add categories")
          +++
@@ -750,7 +760,7 @@ categoryPage = do
                   pgTabs = [],
                   pgScripts = ["search.js"],
                   pgTitle = categoryDescription }
-                (htmlMatches +++ htmlRemovals +++ htmlAdditions)
+                (htmlSuperDirs +++ htmlMatches +++ htmlRemovals +++ htmlAdditions)
 
 getCategories ::
   MonadIO m =>
