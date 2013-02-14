@@ -53,7 +53,6 @@ import Network.Gitit.Types
 import Network.Gitit.Util (trim, splitCategories, parsePageType)
 import Text.ParserCombinators.Parsec
 import Data.Char (toLower)
-import Data.Maybe (fromMaybe)
 import Data.ByteString.UTF8 (toString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -165,8 +164,8 @@ readCategories f =
                  then do -- get rest of metadata
                    rest <- hGetLinesTill h dotline
                    let (md,_) = parseMetadata $ unlines $ "---":rest
-                   return $ splitCategories $ fromMaybe ""
-                          $ lookup "categories" md
+                   return $ concatMap (splitCategories . snd)
+                          $ filter (("categories"==) . fst) md
                  else return [])
        (\e -> if isEOFError e then return [] else throwIO e)
 
