@@ -73,7 +73,7 @@ import Data.List (intersperse, nub, sortBy, find, isPrefixOf, inits)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, catMaybes, listToMaybe)
 import Data.Ord (comparing)
 import Data.Char (toLower, isSpace)
-import Data.List.HT (dropWhileRev, removeEach)
+import Data.List.HT (removeEach)
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as S
@@ -697,8 +697,7 @@ fileListToHtml base' prefix files =
 categoryPage :: Handler
 categoryPage = do
   let splitPathNormalise =
-         map (dropWhileRev (`elem` pathSeparators)) .
-         splitPath . normalise
+         map dropTrailingPathSeparator . splitPath . normalise
   reqComponents <- fmap splitPathNormalise getPath
   let (reqCategories, reqDirs) =
          case break ((Just ':' ==) . listToMaybe) reqComponents of
