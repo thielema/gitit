@@ -69,11 +69,11 @@ import Prelude hiding (catch)
 import Network.Gitit.State
 import Text.XHtml hiding ( (</>), dir, method, password, rev )
 import qualified Text.XHtml as X ( method )
-import Data.List (intersperse, nub, sortBy, find, isPrefixOf, inits, sort)
+import Data.List (intersperse, nub, sortBy, find, isPrefixOf, inits)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, catMaybes)
 import Data.Ord (comparing)
 import Data.Char (toLower, isSpace)
-import Data.List.HT (dropWhileRev)
+import Data.List.HT (dropWhileRev, removeEach)
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as S
@@ -698,32 +698,58 @@ categoryPage :: Handler
 categoryPage = do
   reqCategories <-
      fmap
-        (Set.fromList . map (dropWhileRev (`elem` pathSeparators)) .
+        (map (dropWhileRev (`elem` pathSeparators)) .
          splitPath . normalise)
         getPath
   cfg <- getConfig
   let repoPath = repositoryPath cfg
-  let categoryDescription = "Categories: " ++ unwords (Set.toList reqCategories)
+  let categoryDescription = "Categories: " ++ unwords reqCategories
+  let reqCategorySet = Set.fromList reqCategories
   fs <- getFileStore
   files <- liftIO $ index fs
   let pages = filter (\f -> isPageFile f && not (isDiscussPageFile f)) files
   matches <- liftM catMaybes $
              forM pages $ \f -> do
                categories <- liftIO $ readCategories $ repoPath </> f
-               return $ if reqCategories `Set.isSubsetOf` Set.fromList categories
+               return $ if reqCategorySet `Set.isSubsetOf` Set.fromList categories
                            then Just f
                            else Nothing
   base' <- getWikiBase
   let toMatchListItem file = li <<
         [ anchor ! [href $ base' ++ urlForPage (dropExtension file)] << dropExtension file ]
   let htmlMatches = ulist << map toMatchListItem matches
+
+  let toRemoveListItem (ctg, components) = li <<
+        [ anchor ! [href $ base' ++ "/_category" ++ urlForPage (joinPath components) ] << ctg ]
+  let htmlRemovals =
+         (h2 << "Remove categories")
+         +++
+         (ulist << (map toRemoveListItem $ sortBy (comparing fst) $ removeEach reqCategories))
+
+  categories <- getCategories repoPath pages
+  let toAddListItem ctg = li <<
+        [ anchor ! [href $ base' ++ "/_category" ++
+                       urlForPage (joinPath $ reqCategories ++ [ctg]) ] << ctg ]
+  let htmlAdditions =
+         (h2 << "Add categories")
+         +++
+         (ulist << (map toAddListItem $ Set.toList $
+                    Set.difference categories reqCategorySet))
+
   formattedPage defaultPageLayout{
                   pgPageName = categoryDescription,
                   pgShowPageTools = False,
                   pgTabs = [],
                   pgScripts = ["search.js"],
                   pgTitle = categoryDescription }
-                htmlMatches
+                (htmlMatches +++ htmlRemovals +++ htmlAdditions)
+
+getCategories ::
+  MonadIO m =>
+  FilePath -> [FilePath] -> m (Set.Set String)
+getCategories repoPath pages = do
+  liftIO $ liftM (Set.fromList . concat) $ forM pages $ \f ->
+                  readCategories (repoPath </> f)
 
 categoryListPage :: Handler
 categoryListPage = do
@@ -732,12 +758,11 @@ categoryListPage = do
   fs <- getFileStore
   files <- liftIO $ index fs
   let pages = filter (\f -> isPageFile f && not (isDiscussPageFile f)) files
-  categories <- liftIO $ liftM (nub . sort . concat) $ forM pages $ \f ->
-                  readCategories (repoPath </> f)
+  categories <- getCategories repoPath pages
   base' <- getWikiBase
   let toCatLink ctg = li <<
         [ anchor ! [href $ base' ++ "/_category" ++ urlForPage ctg] << ctg ]
-  let htmlMatches = ulist << map toCatLink categories
+  let htmlMatches = ulist << map toCatLink (Set.toList categories)
   formattedPage defaultPageLayout{
                   pgPageName = "Categories",
                   pgShowPageTools = False,
