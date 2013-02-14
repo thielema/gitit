@@ -709,7 +709,9 @@ categoryPage = do
   let categoryDescription = "Categories: " ++ unwords reqCategories
   let reqCategorySet = Set.fromList reqCategories
   fs <- getFileStore
+  -- Can we access the filestore atomically?
   files <- liftIO $ index fs
+  dirContent <- liftIO $ directory fs $ joinPath reqDirs
   let pages =
          filter
             (\f ->
@@ -740,6 +742,15 @@ categoryPage = do
             (toHtml " / ")
             (zipWith toSuperDir ("." : reqDirs) $ inits reqDirs))
 
+  let toSubDirItem res =
+         case res of
+            FSDirectory dr -> Just $ li << [ ctgAnchor reqCategories (reqDirs ++ [dr]) << dr ]
+            _ -> Nothing
+  let htmlSubDirs =
+         (h2 << "Narrow to sub-directory")
+         +++
+         (ulist << (mapMaybe toSubDirItem dirContent))
+
   let toRemoveListItem (ctg, components) = li << [ ctgAnchor components reqDirs << ctg ]
   let htmlRemovals =
          (h2 << "Remove categories")
@@ -760,7 +771,8 @@ categoryPage = do
                   pgTabs = [],
                   pgScripts = ["search.js"],
                   pgTitle = categoryDescription }
-                (htmlSuperDirs +++ htmlMatches +++ htmlRemovals +++ htmlAdditions)
+                (htmlMatches +++ htmlSuperDirs +++ htmlSubDirs +++
+                 htmlRemovals +++ htmlAdditions)
 
 getCategories ::
   MonadIO m =>
