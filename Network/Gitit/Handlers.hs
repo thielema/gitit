@@ -73,9 +73,11 @@ import Data.List (intersperse, nub, sortBy, find, isPrefixOf, inits, sort)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, catMaybes)
 import Data.Ord (comparing)
 import Data.Char (toLower, isSpace)
+import Data.List.HT (dropWhileRev)
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString as S
+import qualified Data.Set as Set
 import Network.HTTP (urlEncodeVars)
 import Data.Time (getCurrentTime, addUTCTime)
 import Data.Time.Clock (diffUTCTime, UTCTime(..))
@@ -694,17 +696,21 @@ fileListToHtml base' prefix files =
 -- more sophisticated searching options to filestore.
 categoryPage :: Handler
 categoryPage = do
-  category <- getPath
+  reqCategories <-
+     fmap
+        (Set.fromList . map (dropWhileRev (`elem` pathSeparators)) .
+         splitPath . normalise)
+        getPath
   cfg <- getConfig
   let repoPath = repositoryPath cfg
-  let categoryDescription = "Category: " ++ category
+  let categoryDescription = "Categories: " ++ unwords (Set.toList reqCategories)
   fs <- getFileStore
   files <- liftIO $ index fs
   let pages = filter (\f -> isPageFile f && not (isDiscussPageFile f)) files
   matches <- liftM catMaybes $
              forM pages $ \f -> do
                categories <- liftIO $ readCategories $ repoPath </> f
-               return $ if category `elem` categories
+               return $ if reqCategories `Set.isSubsetOf` Set.fromList categories
                            then Just f
                            else Nothing
   base' <- getWikiBase
